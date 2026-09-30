@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+
+#
+# Helper script to build embench benchmark files, using the same configuration as the actual embench benchmark.
+# Only supports riscv32 / 64; assumes the boards are named "spike-{clang,lcb}-O{0,3}" and the chip is always named "generic"
+#
+
+import sys, os, subprocess, argparse
+from pathlib import Path
+
+EMBENCH = Path("/embench")
+
+p = argparse.ArgumentParser()
+p.add_argument("arch", choices=["riscv32", "riscv64"])
+p.add_argument("opt", choices=["O0", "O3"])
+p.add_argument("file", nargs="?", help="single file to compile; omit with --all")
+p.add_argument("--clang", action="store_true", help="upstream clang instead of LCB-generated")
+p.add_argument("--all", action="store_true", help="build the whole suite instead of one file")
+args, extra = p.parse_known_args()
+
+board = f"spike-{'clang' if args.clang else 'lcb'}-{args.opt}"
+
+if args.all:
+    # Zero reimplementation: just call the real script with the expanded board name.
+    cmd = ["./build_all.py", "-v", "--arch", args.arch, "--chip", "generic",
+           "--board", board, "--clean", *extra]
+    print(" ".join(cmd))
+    sys.exit(subprocess.run(cmd, cwd=EMBENCH).returncode)
+
+if not args.file:
+    p.error("FILE is required unless --all is given")
+
+# Single-file mode: reuse build_all.py's own config resolution, since it has
+# no equivalent of this mode to call into directly.
+sys.path.insert(0, str(EMBENCH / "pylib"))
+os.chdir(EMBENCH)
+import build_all as ba
+
+ap = ba.build_parser()
+bargs = ap.parse_args(["--arch", args.arch, "--chip", "generic", "--board", board])
+ba.gp['rootdir'] = os.path.abspath(".")
+ba.gp['bd'] = bargs.builddir
+ba.setup_logging(bargs.logdir, 'ccb')
+ba.validate_args(bargs)
+ba.set_parameters(bargs)
+
+out = Path(args.file).stem + ".o"
+cmd = [ba.gp['cc'], *ba.gp['cflags'], '-o', out, args.file]
+print(" ".join(cmd))
+os.chdir((EMBENCH / f"config/{args.arch}/boards/{board}").resolve())
+os.execvp(cmd[0], cmd)

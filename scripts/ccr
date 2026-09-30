@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+# ccr riscv32|riscv64 <binary> [--debug]
+
+set -euo pipefail
+
+ARCH=$1; BIN=$2; DEBUG=${3:-}
+ARGS=(-L /opt/riscv/riscv64-unknown-elf -nographic -machine spike -bios "$BIN")
+
+if [[ "$DEBUG" == "--debug" ]]; then
+  ARGS+=(-s -S)   # -S: halt CPU at boot; -s: gdbstub on tcp::1234
+  echo "qemu halted, waiting for debugger on :1234"
+  echo "connect with: riscv64-unknown-elf-gdb $BIN -ex 'target remote localhost:1234'"
+fi
+
+exec "qemu-system-$ARCH" "${ARGS[@]}"
