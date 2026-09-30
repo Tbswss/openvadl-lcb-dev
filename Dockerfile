@@ -6,9 +6,12 @@ FROM ubuntu:26.04
 EXPOSE 10240
 EXPOSE 1234
 
-
+#
+# install dependencies / qol tools
+#
 RUN apt update --assume-yes && \
   apt install --assume-yes \
+    tmux \
     neovim \
     rsync \
     curl \
@@ -17,14 +20,12 @@ RUN apt update --assume-yes && \
     make \
     cmake \
     ninja-build \
-    ccache \
     python3 \
     git \
     libfmt-dev \
     libc++-dev \
     libc++abi-dev \
-    clang \
-    lldb
+    clang
 
 #
 # copy toolchain over
@@ -43,10 +44,12 @@ ENV SCCACHE_DIR=/root/.cache/sccache
 ENV SCCACHE_CACHE_SIZE=10G
 
 #
-# set up default flags for clang
+# set up bashrc with helpers
 #
-COPY bash_extras /root/.bash_extras
-RUN echo 'source /root/.bash_extras' >> /root/.bashrc
+COPY bash_extras /root/
+RUN echo 'source /root/bash_extras/banner.sh' >> /root/.bashrc
+RUN echo 'source /root/bash_extras/clang-flags.sh' >> /root/.bashrc
+RUN echo 'source /root/bash_extras/alias.sh' >> /root/.bashrc
 
 #
 # install nvm / node / compiler explorer
@@ -60,5 +63,4 @@ COPY compiler-explorer/c.local.properties /compiler-explorer/etc/config/c.local.
 WORKDIR /
 
 COPY ./scripts /scripts
-
 CMD bash /scripts/init.sh && bash
