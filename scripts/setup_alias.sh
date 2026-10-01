@@ -15,6 +15,6 @@ DEST_DIR="/usr/local/bin"
 
 for bin in "$SRC_DIR"/*; do
   [ -f "$bin" ] && [ -x "$bin" ] || continue
-  ln -sfv "$bin" "$DEST_DIR/lcb-$(basename "$bin")"
+  ln -sfv "$bin" "$DEST_DIR/lcb-$(basename "$bin")" 2>&1 > /dev/null
 done
 

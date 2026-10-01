@@ -16,6 +16,9 @@ p.add_argument("opt", choices=["O0", "O3"])
 p.add_argument("file", nargs="?", help="single file to compile; omit with --all")
 p.add_argument("--clang", action="store_true", help="upstream clang instead of LCB-generated")
 p.add_argument("--all", action="store_true", help="build the whole suite instead of one file")
+p.add_argument("--link", action="store_true",
+               help="also compile support/board files and link a runnable binary")
+p.add_argument("-o", dest="output", help="output binary name (only with --link)")
 args, extra = p.parse_known_args()
 
 board = f"spike-{'clang' if args.clang else 'lcb'}-{args.opt}"
@@ -30,22 +33,63 @@ if args.all:
 if not args.file:
     p.error("FILE is required unless --all is given")
 
+# Resolve the input path against the directory we were actually invoked from,
+# *before* anything below changes cwd or relies on it.
+input_file = Path(args.file).resolve()
+
 # Single-file mode: reuse build_all.py's own config resolution, since it has
 # no equivalent of this mode to call into directly.
-sys.path.insert(0, str(EMBENCH / "pylib"))
-os.chdir(EMBENCH)
+sys.path.insert(0, str(EMBENCH))
 import build_all as ba
 
 ap = ba.build_parser()
 bargs = ap.parse_args(["--arch", args.arch, "--chip", "generic", "--board", board])
-ba.gp['rootdir'] = os.path.abspath(".")
-ba.gp['bd'] = bargs.builddir
+ba.gp['rootdir'] = str(EMBENCH)  # absolute by construction; no cwd dependency
+# Scratch dir for support/arch/chip/board objects when --link is used; also
+# absolute, so compile_support() never depends on cwd either.
+ba.gp['bd'] = str(Path.cwd() / ".ccb-bd")
+ba.gp['verbose'] = False  # set directly in build_all.py's main(), which we skip
 ba.setup_logging(bargs.logdir, 'ccb')
 ba.validate_args(bargs)
 ba.set_parameters(bargs)
 
-out = Path(args.file).stem + ".o"
-cmd = [ba.gp['cc'], *ba.gp['cflags'], '-o', out, args.file]
+out = Path.cwd() / (input_file.stem + ".o")
+cmd = [ba.gp['cc'], *ba.gp['cflags'], '-o', str(out), str(input_file)]
 print(" ".join(cmd))
-os.chdir((EMBENCH / f"config/{args.arch}/boards/{board}").resolve())
-os.execvp(cmd[0], cmd)
+subprocess.run(cmd, check=True)
+
+if not args.link:
+    sys.exit(0)
+
+# --link: compile main.o/beebsc.o + the board's init/support files (same cc/cflags
+# as above, via build_all.py's own compile_support()), then link everything with
+# the real linker/ldflags from board.cfg -- same approach as build_all.py's own
+# link_benchmark(), just assembled by hand since that function expects the
+# benchmark's own object to already live inside its managed build tree.
+if not ba.compile_support():
+    sys.exit("failed to compile support/board files")
+
+objs = [str(out)]
+for supp in ("main.o", "beebsc.o"):
+    p_ = Path(ba.gp['bd_supportdir']) / supp
+    if p_.is_file():
+        objs.append(str(p_))
+for dirtype in ("arch", "chip", "board"):
+    d = Path(ba.gp['bd_' + dirtype + 'dir'])
+    if d.is_dir():
+        objs += sorted(str(o) for o in d.glob("*.o"))
+
+# Rewrite the board's relative "-T../../../config/.../link.ld" (relative to
+# build_all.py's own build dir) into an absolute path, since we're not cwd'd
+# there.
+ldflags = []
+for flag in ba.gp['ldflags']:
+    if flag.startswith('-T'):
+        ldflags.append(f"-T{Path(ba.gp['boarddir']) / 'link.ld'}")
+    else:
+        ldflags.append(flag)
+
+output = args.output or input_file.stem
+link_cmd = [ba.gp['ld'], *ldflags, '-o', output, *objs, *ba.gp['user_libs']]
+print(" ".join(link_cmd))
+os.execvp(link_cmd[0], link_cmd)

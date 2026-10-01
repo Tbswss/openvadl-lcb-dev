@@ -1,7 +1,7 @@
 # TODO do not use latest
 FROM ghcr.io/openvadl/lcb-test-base@sha256:0c91110246c88996b69bdffae4510f86959fabf57ebda51662a04a23b8b86aae as lcb-base
 
-FROM ubuntu:26.04
+FROM ubuntu:22.04
 
 EXPOSE 10240
 EXPOSE 1234
@@ -11,21 +11,27 @@ EXPOSE 1234
 #
 RUN apt update --assume-yes && \
   apt install --assume-yes \
-    tmux \
-    neovim \
-    rsync \
-    curl \
-    libglib2.0-0 \
     build-essential \
     make \
     cmake \
     ninja-build \
-    python3 \
-    git \
+    clang \
+    ccache \
+    libpython3.10 \
+    libglib2.0-0 \
     libfmt-dev \
     libc++-dev \
     libc++abi-dev \
-    clang
+    libpixman-1-0 \
+    libfdt1 \
+    python3 \
+    openjdk-25-jdk \
+    rsync \
+    curl \
+    git \
+    tmux \
+    neovim
+
 
 #
 # copy toolchain over
@@ -35,6 +41,10 @@ COPY --from=lcb-base /opt/qemu /opt/qemu
 COPY --from=lcb-base /opt/riscv /opt/riscv
 COPY --from=lcb-base /opt/aarch64-linux /opt/aarch64-linux
 COPY --from=lcb-base /opt/aarch64-elf /opt/aarch64-elf
+ENV PATH=/opt/aarch64-elf/bin:$PATH
+ENV PATH=/opt/aarch64-linux/bin:$PATH
+ENV PATH=/opt/riscv/bin:$PATH
+ENV PATH=/opt/qemu/bin:$PATH
 
 #
 # setup sccache
@@ -42,14 +52,6 @@ COPY --from=lcb-base /opt/aarch64-elf /opt/aarch64-elf
 ENV PATH=/opt/sccache:$PATH
 ENV SCCACHE_DIR=/root/.cache/sccache
 ENV SCCACHE_CACHE_SIZE=10G
-
-#
-# set up bashrc with helpers
-#
-COPY bash_extras /root/
-RUN echo 'source /root/bash_extras/banner.sh' >> /root/.bashrc
-RUN echo 'source /root/bash_extras/clang-flags.sh' >> /root/.bashrc
-RUN echo 'source /root/bash_extras/alias.sh' >> /root/.bashrc
 
 #
 # install nvm / node / compiler explorer
@@ -62,5 +64,21 @@ RUN . "/root/.nvm/nvm.sh" && nvm install 22.23.1 && make prebuild
 COPY compiler-explorer/c.local.properties /compiler-explorer/etc/config/c.local.properties
 WORKDIR /
 
-COPY ./scripts /scripts
-CMD bash /scripts/init.sh && bash
+#
+# setup default flags for clang
+#
+# riscv
+ENV CCC_OVERRIDE_OPTIONS="^--sysroot=/opt/riscv/riscv64-unknown-elf"
+# aarch64
+ENV CCC_OVERRIDE_OPTIONS="$CCC_OVERRIDE_OPTIONS ^-isystem/opt/aarch64-linux/aarch64-none-linux-gnu/libc/usr/include/ ^--sysroot=/opt/aarch64-linux/aarch64-none-linux-gnu/"
+
+
+#
+# set up bashrc with helpers
+#
+RUN mkdir /root/bash-extras
+COPY bash-extras /root/bash-extras
+RUN echo 'source /root/bash-extras/banner.sh' >> /root/.bashrc
+
+COPY scripts /usr/local/bin
+CMD /usr/local/bin/init.sh && bash

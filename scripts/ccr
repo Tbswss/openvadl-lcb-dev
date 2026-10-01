@@ -4,6 +4,15 @@
 
 set -euo pipefail
 
+if [[ $# -lt 2 || ( "$1" != "riscv32" && "$1" != "riscv64" ) ]]; then
+  echo "usage: ccr <riscv32|riscv64> <binary> [--debug]"
+  echo
+  echo "  Runs a compiled binary under qemu (-machine spike)."
+  echo "  --debug   halt the CPU at boot and open a gdbstub on tcp::1234;"
+  echo "            connect with: riscv64-unknown-elf-gdb <binary> -ex 'target remote localhost:1234'"
+  exit 1
+fi
+
 ARCH=$1; BIN=$2; DEBUG=${3:-}
 ARGS=(-L /opt/riscv/riscv64-unknown-elf -nographic -machine spike -bios "$BIN")
 

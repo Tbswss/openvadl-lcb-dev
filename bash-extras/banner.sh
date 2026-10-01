@@ -5,6 +5,7 @@ echo -e "  \033[1mccr\033[0m <riscv32|riscv64> <binary> [--debug]            run
 echo -e "                                                          (--debug: gdbstub on :1234)"
 echo -e "  \033[1mriscv64-unknown-elf-gdb\033[0m <binary> -ex 'target remote localhost:1234'"
 echo -e "  \033[1msccache -s\033[0m                                         cache hit/miss stats"
+echo -e "  "
 echo -e "  /lcb      -> generated LCB backend + build"
 echo -e "  /embench  -> embench-iot checkout"
 echo -e "  /src      -> compat alias (/lcb + /lcb/embench), for board.cfg's hardcoded paths"
