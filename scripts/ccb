@@ -5,7 +5,7 @@
 # Only supports riscv32 / 64; assumes the boards are named "spike-{clang,lcb}-O{0,3}" and the chip is always named "generic"
 #
 
-import sys, os, subprocess, argparse
+import sys, os, shutil, subprocess, argparse
 from pathlib import Path
 
 EMBENCH = Path("/embench")
@@ -52,6 +52,7 @@ ba.gp['verbose'] = False  # set directly in build_all.py's main(), which we skip
 ba.setup_logging(bargs.logdir, 'ccb')
 ba.validate_args(bargs)
 ba.set_parameters(bargs)
+ba.gp['cflags'] += extra  # e.g. -g, passed straight through to every compile below
 
 out = Path.cwd() / (input_file.stem + ".o")
 cmd = [ba.gp['cc'], *ba.gp['cflags'], '-o', str(out), str(input_file)]
@@ -66,6 +67,12 @@ if not args.link:
 # the real linker/ldflags from board.cfg -- same approach as build_all.py's own
 # link_benchmark(), just assembled by hand since that function expects the
 # benchmark's own object to already live inside its managed build tree.
+
+# Always rebuild support/board objects from scratch -- compile_support()'s own
+# mtime check only tracks source-vs-object staleness, not flag changes (e.g.
+# -g), so a stale .ccb-bd from a previous invocation with different flags
+# would otherwise be silently reused.
+shutil.rmtree(ba.gp['bd'], ignore_errors=True)
 if not ba.compile_support():
     sys.exit("failed to compile support/board files")
 

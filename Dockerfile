@@ -1,7 +1,7 @@
 # TODO do not use latest
 FROM ghcr.io/openvadl/lcb-test-base@sha256:0c91110246c88996b69bdffae4510f86959fabf57ebda51662a04a23b8b86aae as lcb-base
 
-FROM ubuntu:22.04
+FROM ubuntu:26.04
 
 EXPOSE 10240
 EXPOSE 1234
@@ -9,7 +9,11 @@ EXPOSE 1234
 #
 # install dependencies / qol tools
 #
+# riscv64-...-gdb needs libpython3.10
 RUN apt update --assume-yes && \
+  apt install --assume-yes software-properties-common && \
+  add-apt-repository ppa:deadsnakes/ppa && \
+  apt update --assume-yes && \
   apt install --assume-yes \
     build-essential \
     make \
@@ -64,13 +68,14 @@ RUN . "/root/.nvm/nvm.sh" && nvm install 22.23.1 && make prebuild
 COPY compiler-explorer/c.local.properties /compiler-explorer/etc/config/c.local.properties
 WORKDIR /
 
-#
+# too invasive, is added on every clang invocation => config
+# 
 # setup default flags for clang
 #
 # riscv
-ENV CCC_OVERRIDE_OPTIONS="^--sysroot=/opt/riscv/riscv64-unknown-elf"
+# ENV CCC_OVERRIDE_OPTIONS="^--sysroot=/opt/riscv/riscv64-unknown-elf"
 # aarch64
-ENV CCC_OVERRIDE_OPTIONS="$CCC_OVERRIDE_OPTIONS ^-isystem/opt/aarch64-linux/aarch64-none-linux-gnu/libc/usr/include/ ^--sysroot=/opt/aarch64-linux/aarch64-none-linux-gnu/"
+# ENV CCC_OVERRIDE_OPTIONS="$CCC_OVERRIDE_OPTIONS ^-isystem/opt/aarch64-linux/aarch64-none-linux-gnu/libc/usr/include/ ^--sysroot=/opt/aarch64-linux/aarch64-none-linux-gnu/"
 
 
 #
