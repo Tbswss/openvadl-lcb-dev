@@ -68,15 +68,10 @@ RUN . "/root/.nvm/nvm.sh" && nvm install 22.23.1 && make prebuild
 COPY compiler-explorer/c.local.properties /compiler-explorer/etc/config/c.local.properties
 WORKDIR /
 
-# too invasive, is added on every clang invocation => config
 # 
-# setup default flags for clang
+# setup configs for clang
 #
-# riscv
-# ENV CCC_OVERRIDE_OPTIONS="^--sysroot=/opt/riscv/riscv64-unknown-elf"
-# aarch64
-# ENV CCC_OVERRIDE_OPTIONS="$CCC_OVERRIDE_OPTIONS ^-isystem/opt/aarch64-linux/aarch64-none-linux-gnu/libc/usr/include/ ^--sysroot=/opt/aarch64-linux/aarch64-none-linux-gnu/"
-
+COPY clang-configs /root
 
 #
 # set up bashrc with helpers
